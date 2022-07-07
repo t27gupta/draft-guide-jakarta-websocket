@@ -81,7 +81,7 @@ public class SystemService {
     }
 
     @OnMessage
-    public void onMessage(){
+    public Publisher<SystemLoad> onMessage(){
         System.out.println("Information received: ");
         return Flowable.interval(updateInterval, TimeUnit.SECONDS)
                        .map((interval -> new SystemLoad(getHostname(),
