@@ -25,6 +25,9 @@ import javax.websocket.OnMessage;
 import javax.websocket.OnOpen;
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
+import javax.websocket.Session;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Outgoing;
@@ -47,6 +50,18 @@ public class SystemService {
 
     private static String hostname = null;
 
+    private static Set<Session> sessions = new HashSet<>();
+
+    public static void broadcastLoad(SystemLoad systemLoad) {
+        for (Session session : sessions) {
+            try {
+                session.sendSystemLoad(systemLoad);
+            } catch (IOException | EncodeException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     private static String getHostname() {
         if (hostname == null) {
             try {
@@ -58,16 +73,10 @@ public class SystemService {
         return hostname;
     }
 
-    @Outgoing("systemLoad")
-    public Publisher<SystemLoad> sendSystemLoad() {
-        return Flowable.interval(updateInterval, TimeUnit.SECONDS)
-                       .map((interval -> new SystemLoad(getHostname(),
-                           Double.valueOf(osMean.getSystemLoadAverage()))));
-    }
-    
     @OnOpen
-    public void onOpen(){
+    public void onOpen(Session session){
         System.out.println("Web Socket opened");
+        sessions.add(session);
     }
 
     @OnError
@@ -76,17 +85,16 @@ public class SystemService {
     }
 
     @OnClose
-    public void onClose(){
+    public void onClose(Session session){
         System.out.println("Web Socket has been closed");
+        sessions.remove(session);
+
     }
 
     @OnMessage
-    public Publisher<SystemLoad> onMessage(){
-        System.out.println("Information received: ");
-        return Flowable.interval(updateInterval, TimeUnit.SECONDS)
-                       .map((interval -> new SystemLoad(getHostname(),
-                           Double.valueOf(osMean.getSystemLoadAverage()))));
-
+    public Publisher<SystemLoad> onMessage(Session session){
+        System.out.println("Information received: " + session.getHostName());
+        return session.sendSystemLoad();
     }
 }
  
